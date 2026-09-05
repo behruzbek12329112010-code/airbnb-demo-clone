@@ -46,6 +46,14 @@ const CREATE_LISTING = gql`
   }
 `;
 
+const LOGIN = gql`
+  mutation Mutation($email: String!, $password: String!) {
+    login(email: $email, password: $password) {
+      accessToken
+    }
+  }
+`;
+
 const ADD_FAVORITE = gql`
   mutation AddFavorite($listingId: ID!) {
     addFavorite(listingId: $listingId) {
@@ -60,8 +68,9 @@ const AdminPanel = () => {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-
   const [modalOpen, setModalOpen] = useState(false);
+
+  const [login] = useMutation(LOGIN);
 
   const {
     data,
@@ -71,8 +80,14 @@ const AdminPanel = () => {
     variables: { limit: 50 },
     skip: !isLoggedIn,
   });
-  const [createListing, { loading: mutationLoading }] =
-    useMutation(CREATE_LISTING);
+
+  const [createListing, { loading: mutationLoading }] = useMutation(
+    CREATE_LISTING,
+    {
+      refetchQueries: [{ query: GET_LISTINGS, variables: { limit: 50 } }],
+    },
+  );
+
   const [addFavorite] = useMutation(ADD_FAVORITE);
 
   const { control, handleSubmit, reset } = useForm({
@@ -94,14 +109,22 @@ const AdminPanel = () => {
     },
   });
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setAuthError("");
+    try {
+      const response = await login({
+        variables: { email: email, password: password },
+      });
 
-    if (email === "admin@uz.com" && password === "1234") {
-      setIsLoggedIn(true);
-    } else {
-      setAuthError("Email yoki parol xato!");
+      const token = response.data?.login?.accessToken;
+      if (token) {
+        localStorage.setItem("token", token);
+        setIsLoggedIn(true);
+      }
+    } catch (err) {
+      console.error(err);
+      setAuthError(err.message || "Email yoki parol xato!");
     }
   };
 
@@ -127,6 +150,7 @@ const AdminPanel = () => {
           },
         },
       });
+
       setModalOpen(false);
       reset();
       alert("Muvaffaqiyatli qo'shildi!");
@@ -343,7 +367,6 @@ const AdminPanel = () => {
             >
               <FavoriteBorderIcon />
             </IconButton>
-            {/* <Link to={`/listingsInfo/${item.id}`}> */}
             <img
               style={{
                 width: "181px",
@@ -354,7 +377,6 @@ const AdminPanel = () => {
               src={item.images}
               alt={item.title}
             />
-            {/* </Link> */}
             <Typography variant="subtitle2" mt={1}>
               {item.title}
             </Typography>
